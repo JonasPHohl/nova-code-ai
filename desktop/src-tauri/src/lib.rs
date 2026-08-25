@@ -30,6 +30,9 @@ fn read_project_file(root: String, path: String) -> Result<String, String> { fs:
 fn write_project_file(root: String, path: String, content: String) -> Result<(), String> { fs::write(safe_path(&root, &path)?, content).map_err(|error| error.to_string()) }
 
 #[tauri::command]
+fn delete_project_file(root: String, path: String) -> Result<(), String> { fs::remove_file(safe_path(&root, &path)?).map_err(|error| error.to_string()) }
+
+#[tauri::command]
 fn project_path_exists(root: String, path: String) -> Result<bool, String> { Ok(safe_path(&root, &path)?.exists()) }
 
 #[tauri::command]
@@ -51,7 +54,7 @@ fn list_project_directory(root: String, path: String) -> Result<Vec<FileEntry>, 
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
-    .invoke_handler(tauri::generate_handler![read_project_file, write_project_file, project_path_exists, create_project_directory, list_project_directory])
+    .invoke_handler(tauri::generate_handler![read_project_file, write_project_file, delete_project_file, project_path_exists, create_project_directory, list_project_directory])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

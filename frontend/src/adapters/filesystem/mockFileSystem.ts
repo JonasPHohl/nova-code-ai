@@ -28,6 +28,12 @@ export class MockFileSystem implements FileSystemAdapter {
     this.persist();
   }
 
+  async deleteFile(path: string): Promise<void> {
+    const safePath = validateProjectPath(this.projectRoot, path);
+    this.files.delete(safePath);
+    this.persist();
+  }
+
   async exists(path: string): Promise<boolean> {
     const safePath = validateProjectPath(this.projectRoot, path);
     return this.files.has(safePath) || this.directories.has(safePath);

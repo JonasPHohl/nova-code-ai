@@ -33,13 +33,13 @@ export function useEditorWorkspace(service: WorkspaceFileService, root: string) 
     setFiles((current) => current.map((file) => file.path === path ? { ...file, content, savedContent: content } : file));
   }, []);
 
-  const saveFile = useCallback(async (path: string) => {
+  const saveFile = useCallback(async (path: string): Promise<boolean> => {
     const file = files.find((item) => item.path === path);
-    if (!file || file.content === file.savedContent) return;
+    if (!file || file.content === file.savedContent) return true;
     const contentAtSaveStart = file.content;
     setSavingPath(path);
-    try { await service.saveFile(file); setFiles((current) => current.map((item) => item.path === path ? { ...item, savedContent: contentAtSaveStart } : item)); }
-    catch (caught) { setError(messageOf(caught, 'Datei konnte nicht gespeichert werden.')); }
+    try { await service.saveFile(file); setFiles((current) => current.map((item) => item.path === path ? { ...item, savedContent: contentAtSaveStart } : item)); return true; }
+    catch (caught) { setError(messageOf(caught, 'Datei konnte nicht gespeichert werden.')); return false; }
     finally { setSavingPath(null); }
   }, [files, service]);
 

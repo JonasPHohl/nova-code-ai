@@ -16,5 +16,5 @@ export function useChat(provider: AIProvider, model: string) {
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not connect to Ollama.'); }
     finally { setIsThinking(false); }
   }
-  return { messages, isThinking, error, canChat, send, clearError: () => setError(null) };
+  return { messages, isThinking, error, canChat, send, clearError: () => setError(null), clearChat: () => { setMessages([]); setError(null); } };
 }

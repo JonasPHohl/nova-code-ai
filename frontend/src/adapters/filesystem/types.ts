@@ -5,5 +5,6 @@ export interface FileSystemAdapter {
   writeFile(path: string, content: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   createDirectory(path: string): Promise<void>;
+  deleteFile(path: string): Promise<void>;
   listDirectory(path: string): Promise<FileEntry[]>;
 }

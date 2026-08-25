@@ -25,7 +25,7 @@ describe('WorkspaceFileService', () => {
   it('keeps save errors available to the caller', async () => {
     const service = new WorkspaceFileService({
       readFile: async () => '', writeFile: async () => { throw new Error('write failed'); }, exists: async () => true,
-      createDirectory: async () => undefined, listDirectory: async () => []
+      createDirectory: async () => undefined, deleteFile: async () => undefined, listDirectory: async () => []
     });
     await expect(service.saveFile({ path: 'C:/Project/app.ts', name: 'app.ts', content: 'x', savedContent: '', language: 'typescript' })).rejects.toThrow('write failed');
   });

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Activity, ChevronRight, Circle, Code2, FolderOpen, GitBranch, Layers3, Menu, Plus, Search, Settings, ShieldCheck, Terminal, TestTube2, X } from 'lucide-react';
 import type { AppView, SidebarSection } from '../core/types/project';
 import type { RecentProject } from '../core/types/project';
@@ -14,6 +14,9 @@ import { AISettings } from '../features/ai/components/AISettings';
 import { useAISettings } from '../features/ai/hooks/useAISettings';
 import type { AIConfig } from '../features/ai/types';
 import type { OpenFile } from '../features/editor/types';
+import { useEditorSettings } from '../features/editor/hooks/useEditorSettings';
+import type { EditorSettings } from '../features/editor/types/settings';
+import { ProjectSwitchDialog } from '../components/ProjectSwitchDialog';
 import '../styles/index.css';
 
 const webFileSystem = new MockFileSystem('C:/NovaProjects');
@@ -33,6 +36,19 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [bottomPanel, setBottomPanel] = useState('Terminal');
   const { config, updateConfig } = useAISettings();
+  const { settings: editorSettings, updateSettings } = useEditorSettings();
+  const [dirtyFiles, setDirtyFiles] = useState<OpenFile[]>([]);
+  const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
+  const [savingSwitch, setSavingSwitch] = useState(false);
+  const saveAllRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
+  function requestProjectChange(action: () => Promise<void>): void {
+    if (dirtyFiles.length > 0) setPendingAction(() => action);
+    else void runProjectAction(action);
+  }
+  async function runProjectAction(action: () => Promise<void>): Promise<void> { try { await action(); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Projektwechsel fehlgeschlagen.'); } }
+  async function saveAndContinue(): Promise<void> { setSavingSwitch(true); try { await saveAllRef.current(); const action = pendingAction; setPendingAction(null); if (action) await runProjectAction(action); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Dateien konnten nicht gespeichert werden.'); } finally { setSavingSwitch(false); } }
+  function discardAndContinue(): void { const action = pendingAction; setPendingAction(null); if (action) void runProjectAction(action); }
 
   async function createProject() {
     const name = window.prompt('Projektname', 'Nova Project');
@@ -48,16 +64,17 @@ export default function App() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Projekt konnte nicht erstellt werden.'); }
   }
 
-  async function openProject(selected: RecentProject) { try { const service = isTauriRuntime() ? new ProjectService(new TauriFileSystem(selected.path), selected.path) : webProjectService; await service.readManifest(selected.path); webProjectService.rememberProject(selected); setProject(selected); setView('workspace'); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Projekt konnte nicht geöffnet werden.'); } }
+  async function openProject(selected: RecentProject) { requestProjectChange(async () => { try { const service = isTauriRuntime() ? new ProjectService(new TauriFileSystem(selected.path), selected.path) : webProjectService; await service.readManifest(selected.path); webProjectService.rememberProject(selected); setProject(selected); setView('workspace'); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Projekt konnte nicht geöffnet werden.'); } }); }
 
   async function openDirectory(): Promise<void> {
     if (!isTauriRuntime()) { setError('Projekt öffnen ist in der Webversion nicht verfügbar.'); return; }
-    try { const path = await chooseDirectory(); if (!path) return; const service = new ProjectService(new TauriFileSystem(path), path); const manifest = await service.readManifest(path); const selected = { ...manifest, path }; webProjectService.rememberProject(selected); setProjects(webProjectService.getRecentProjects()); setProject(selected); setView('workspace'); }
+    try { const path = await chooseDirectory(); if (!path) return; requestProjectChange(async () => { const service = new ProjectService(new TauriFileSystem(path), path); const manifest = await service.readManifest(path); const selected = { ...manifest, path }; webProjectService.rememberProject(selected); setProjects(webProjectService.getRecentProjects()); setProject(selected); setView('workspace'); }); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Projekt konnte nicht geöffnet werden.'); }
   }
 
   return <div className="app-shell">
     {error && <div className="error-banner" role="alert">{error}<button className="icon-button" aria-label="Fehlermeldung schließen" onClick={() => setError(null)}><X size={15} /></button></div>}
+    {pendingAction && <ProjectSwitchDialog files={dirtyFiles} onSave={() => void saveAndContinue()} onDiscard={discardAndContinue} onCancel={() => setPendingAction(null)} saving={savingSwitch} />}
     <header className="topbar">
       <div className="brand"><span className="brand-mark">✦</span><strong>Nova</strong><span className="brand-muted">Code AI</span></div>
       <div className="project-crumb"><span>Project</span><ChevronRight size={14} /> <strong>{project?.name ?? 'No project open'}</strong></div>
@@ -69,7 +86,7 @@ export default function App() {
         <nav>{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={`nav-button ${section === id ? 'active' : ''}`} title={label} onClick={() => { setSection(id); if (id === 'settings') setView('settings'); else if (project) setView('workspace'); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
         <div className="sidebar-footer"><ShieldCheck size={16} /><span>Local first</span></div>
       </aside>
-      {view === 'home' ? <Home projects={projects} onCreate={createProject} onOpen={openProject} onOpenDirectory={openDirectory} /> : view === 'settings' ? <SettingsPage config={config} onConfigChange={updateConfig} /> : <Workspace project={project} config={config} bottomPanel={bottomPanel} setBottomPanel={setBottomPanel} />}
+      {view === 'home' ? <Home projects={projects} onCreate={() => requestProjectChange(createProject)} onOpen={openProject} onOpenDirectory={openDirectory} /> : view === 'settings' ? <SettingsPage config={config} onConfigChange={updateConfig} editorSettings={editorSettings} onEditorSettingsChange={updateSettings} /> : <Workspace key={project?.path ?? 'workspace'} project={project} config={config} editorSettings={editorSettings} onDirtyChange={setDirtyFiles} onSaveAllReady={(saveAll) => { saveAllRef.current = saveAll; }} bottomPanel={bottomPanel} setBottomPanel={setBottomPanel} />}
     </div>
   </div>;
 }
@@ -78,11 +95,15 @@ function Home({ projects, onCreate, onOpen, onOpenDirectory }: { projects: Recen
   return <main className="home-view"><div className="home-hero"><div className="eyebrow"><span className="spark">✦</span> FOUNDATION / 01</div><h1>Build with intent.</h1><p>Eine ruhige, lokale Entwicklungsumgebung für den nächsten Gedanken.</p><div className="home-actions"><button className="primary-button" onClick={onCreate}><Plus size={17} /> Neues Projekt</button><button className="secondary-button" onClick={onOpenDirectory}><FolderOpen size={17} /> Projekt öffnen</button></div></div><section className="recent-section"><div className="section-heading"><div><span className="eyebrow">WORKSPACE</span><h2>Letzte Projekte</h2></div><span className="count-badge">{projects.length.toString().padStart(2, '0')}</span></div>{projects.length === 0 ? <div className="empty-projects"><Layers3 size={30} /><strong>Noch kein Projekt geöffnet</strong><span>Erstelle deinen ersten lokalen Workspace, um loszulegen.</span><button className="text-button" onClick={onCreate}>Projekt erstellen <ChevronRight size={15} /></button></div> : <div className="project-grid">{projects.map((item) => <button className="project-card" key={item.path} onClick={() => onOpen(item)}><div className="card-icon"><Code2 size={18} /></div><div><strong>{item.name}</strong><span>{item.path}</span></div><ChevronRight size={16} /></button>)}</div>}</section></main>;
 }
 
-function Workspace({ project, config, bottomPanel, setBottomPanel }: { project: RecentProject | null; config: AIConfig; bottomPanel: string; setBottomPanel: (value: string) => void }) {
-  const projectFileSystem = project && isTauriRuntime() ? new TauriFileSystem(project.path) : webFileSystem;
+function Workspace({ project, config, editorSettings, onDirtyChange, onSaveAllReady, bottomPanel, setBottomPanel }: { project: RecentProject | null; config: AIConfig; editorSettings: EditorSettings; onDirtyChange: (files: OpenFile[]) => void; onSaveAllReady: (saveAll: () => Promise<void>) => void; bottomPanel: string; setBottomPanel: (value: string) => void }) {
+  const projectFileSystem = useMemo(() => project && isTauriRuntime() ? new TauriFileSystem(project.path) : webFileSystem, [project]);
   const [context, setContext] = useState<{ file: OpenFile | null; selection: string }>({ file: null, selection: '' });
   const applyEditorContent = useRef<(path: string, content: string) => void>(() => undefined);
-    return <main className="workspace-view"><section className="workspace-main"><EditorWorkspace projectRoot={project?.path ?? 'C:/NovaProjects'} fileSystem={projectFileSystem} projectName={project?.name ?? 'Workspace'} onContextChange={(file, selection) => setContext({ file, selection })} onApplyReady={(apply) => { applyEditorContent.current = apply; }} /><AIWorkspace config={config} projectRoot={project?.path ?? 'C:/NovaProjects'} activeFile={context.file} selection={context.selection} fileSystem={projectFileSystem} onApply={(content) => { if (context.file) applyEditorContent.current(context.file.path, content); }} /></section><div className="bottom-panel"><div className="bottom-tabs">{bottomItems.map((item) => <button key={item} className={bottomPanel === item ? 'active' : ''} onClick={() => setBottomPanel(item)}>{item}</button>)}</div><div className="bottom-content"><Terminal size={16} /><span>{bottomPanel === 'Terminal' ? 'Terminal ist in dieser Foundation bewusst deaktiviert.' : `${bottomPanel} panel ist vorbereitet.`}</span><span className="safe-label"><ShieldCheck size={14} /> sicherer Modus</span></div></div></main>;
+  const handleContextChange = useCallback((file: OpenFile | null, selection: string) => setContext((current) => current.file === file && current.selection === selection ? current : { file, selection }), []);
+  const handleApplyReady = useCallback((apply: (path: string, content: string) => void) => { applyEditorContent.current = apply; }, []);
+  return <main className="workspace-view"><section className="workspace-main"><EditorWorkspace projectRoot={project?.path ?? 'C:/NovaProjects'} fileSystem={projectFileSystem} projectName={project?.name ?? 'Workspace'} editorSettings={editorSettings} onDirtyChange={onDirtyChange} onSaveAllReady={onSaveAllReady} onContextChange={handleContextChange} onApplyReady={handleApplyReady} /><AIWorkspace config={config} projectRoot={project?.path ?? 'C:/NovaProjects'} activeFile={context.file} selection={context.selection} fileSystem={projectFileSystem} onApply={(content) => { if (context.file) applyEditorContent.current(context.file.path, content); }} /></section><div className="bottom-panel"><div className="bottom-tabs">{bottomItems.map((item) => <button key={item} className={bottomPanel === item ? 'active' : ''} onClick={() => setBottomPanel(item)}>{item}</button>)}</div><div className="bottom-content"><Terminal size={16} /><span>{bottomPanel === 'Terminal' ? 'Terminal ist in dieser Foundation bewusst deaktiviert.' : `${bottomPanel} panel ist vorbereitet.`}</span><span className="safe-label"><ShieldCheck size={14} /> sicherer Modus</span></div></div></main>;
 }
 
-function SettingsPage({ config, onConfigChange }: { config: AIConfig; onConfigChange: (patch: Partial<AIConfig>) => void }) { const groups = ['General', 'Appearance', 'AI', 'Editor', 'Security', 'Advanced']; return <main className="settings-view"><div className="settings-header"><span className="eyebrow">CONFIGURATION</span><h1>Settings</h1><p>Workspace-Verhalten und lokale Grenzen verwalten.</p></div><div className="settings-layout"><nav className="settings-nav">{groups.map((group, index) => <button className={index === 0 ? 'active' : ''} key={group}>{group}</button>)}</nav><section className="settings-content"><div className="setting-block"><span className="eyebrow">GENERAL</span><h2>General</h2><p className="setting-description">Grundlegende Einstellungen für Nova Code AI.</p><label className="setting-row"><span><strong>Local first mode</strong><small>Arbeite standardmäßig ohne externe Services.</small></span><input type="checkbox" checked readOnly /></label><label className="setting-row"><span><strong>Confirm file writes</strong><small>Schreibvorgänge werden vorerst immer bestätigt.</small></span><input type="checkbox" checked readOnly /></label></div><AISettings config={config} onChange={onConfigChange} /><div className="setting-block"><span className="eyebrow">SECURITY</span><h2>Security</h2><div className="security-note"><ShieldCheck size={18} /><span><strong>Protected foundation</strong><small>Shell-Ausführung und automatische Änderungen sind deaktiviert.</small></span></div></div></section></div></main>; }
+function SettingsPage({ config, onConfigChange, editorSettings, onEditorSettingsChange }: { config: AIConfig; onConfigChange: (patch: Partial<AIConfig>) => void; editorSettings: EditorSettings; onEditorSettingsChange: (patch: Partial<EditorSettings>) => void }) { const groups = ['General', 'Appearance', 'AI', 'Editor', 'Security', 'Advanced']; return <main className="settings-view"><div className="settings-header"><span className="eyebrow">CONFIGURATION</span><h1>Settings</h1><p>Workspace-Verhalten und lokale Grenzen verwalten.</p></div><div className="settings-layout"><nav className="settings-nav">{groups.map((group, index) => <button className={index === 0 ? 'active' : ''} key={group}>{group}</button>)}</nav><section className="settings-content"><div className="setting-block"><span className="eyebrow">GENERAL</span><h2>General</h2><p className="setting-description">Grundlegende Einstellungen für Nova Code AI.</p><label className="setting-row"><span><strong>Local first mode</strong><small>Arbeite standardmäßig ohne externe Services.</small></span><input type="checkbox" checked readOnly /></label><label className="setting-row"><span><strong>Confirm file writes</strong><small>Schreibvorgänge werden vorerst immer bestätigt.</small></span><input type="checkbox" checked readOnly /></label></div><EditorSettingsPanel settings={editorSettings} onChange={onEditorSettingsChange} /><AISettings config={config} onChange={onConfigChange} /><div className="setting-block"><span className="eyebrow">SECURITY</span><h2>Security</h2><div className="security-note"><ShieldCheck size={18} /><span><strong>Protected foundation</strong><small>Shell-Ausführung und automatische Änderungen sind deaktiviert.</small></span></div></div></section></div></main>; }
+
+function EditorSettingsPanel({ settings, onChange }: { settings: EditorSettings; onChange: (patch: Partial<EditorSettings>) => void }) { return <div className="setting-block"><span className="eyebrow">EDITOR</span><h2>Editor</h2><label className="ai-field"><span>Theme</span><select value={settings.theme} onChange={(event) => onChange({ theme: event.target.value as EditorSettings['theme'] })}><option value="vs-dark">Dark</option><option value="light">Light</option></select></label><label className="ai-field"><span>Font Size</span><input type="number" min="8" max="32" value={settings.fontSize} onChange={(event) => onChange({ fontSize: Number(event.target.value) })} /></label><label className="ai-field"><span>Tab Size</span><input type="number" min="1" max="8" value={settings.tabSize} onChange={(event) => onChange({ tabSize: Number(event.target.value) })} /></label><label className="ai-field"><span>Word Wrap</span><select value={settings.wordWrap} onChange={(event) => onChange({ wordWrap: event.target.value as EditorSettings['wordWrap'] })}><option value="off">Off</option><option value="on">On</option><option value="bounded">Bounded</option></select></label></div>; }

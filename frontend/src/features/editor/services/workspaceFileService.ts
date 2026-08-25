@@ -4,7 +4,10 @@ import { detectLanguage } from '../language';
 import type { ExplorerNode, OpenFile, SearchResult } from '../types';
 
 export class WorkspaceFileService {
-  constructor(private readonly fileSystem: FileSystemAdapter) {}
+  constructor(private readonly fileSystem: FileSystemAdapter, private readonly root = '.') {}
+
+  async readFile(path: string): Promise<string> { return this.fileSystem.readFile(path); }
+  async writeFile(path: string, content: string): Promise<void> { return this.fileSystem.writeFile(path, content); }
 
   async openFile(path: string): Promise<OpenFile> {
     const content = await this.fileSystem.readFile(path);
@@ -14,6 +17,19 @@ export class WorkspaceFileService {
   async saveFile(file: OpenFile): Promise<void> {
     await this.fileSystem.writeFile(file.path, file.content);
   }
+
+  async deleteFile(path: string): Promise<void> {
+    await this.fileSystem.deleteFile(path);
+  }
+
+  async createFile(path: string, content: string): Promise<void> {
+    if (await this.fileSystem.exists(path)) throw new Error(`Datei existiert bereits: ${path}`);
+    await this.fileSystem.writeFile(path, content);
+  }
+
+  async fileExists(path: string): Promise<boolean> { return this.fileSystem.exists(path); }
+  async listDirectory(path: string): Promise<unknown> { return this.fileSystem.listDirectory(path); }
+  async searchFiles(query: string): Promise<unknown> { return this.search(this.root, query); }
   async readProjectGuidance(root: string): Promise<{ rules?: string; memory?: string }> {
     const guidance: { rules?: string; memory?: string } = {};
     try { guidance.rules = await this.fileSystem.readFile(`${root}/.nova/rules.md`); } catch { /* optional guidance */ }

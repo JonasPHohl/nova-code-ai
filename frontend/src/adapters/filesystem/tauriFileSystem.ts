@@ -9,6 +9,7 @@ export class TauriFileSystem implements FileSystemAdapter {
 
   readFile(path: string): Promise<string> { return invoke<string>('read_project_file', { root: this.projectRoot, path }); }
   writeFile(path: string, content: string): Promise<void> { return invoke('write_project_file', { root: this.projectRoot, path, content }); }
+  deleteFile(path: string): Promise<void> { return invoke('delete_project_file', { root: this.projectRoot, path }); }
   exists(path: string): Promise<boolean> { return invoke<boolean>('project_path_exists', { root: this.projectRoot, path }); }
   createDirectory(path: string): Promise<void> { return invoke('create_project_directory', { root: this.projectRoot, path }); }
   async listDirectory(path: string): Promise<FileEntry[]> {
