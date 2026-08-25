@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nova Code AI",
+  "version": "0.1.0",
+  "identifier": "ai.nova-code.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev --prefix ../../frontend",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../../frontend/dist"
+  },
+  "app": {
+    "windows": [{ "title": "Nova Code AI", "width": 1440, "height": 900, "minWidth": 900, "minHeight": 600 }],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": false, "targets": "all" }
+}
