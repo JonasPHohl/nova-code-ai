@@ -14,6 +14,22 @@ export function validateProjectPath(projectRoot: string, candidate: string): str
   return path;
 }
 
+export function validateProjectName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === '.' || trimmed === '..' || /[\\/:*?"<>|]/.test(trimmed) || trimmed.includes('..')) {
+    throw new Error('Der Projektname enthält ungültige Zeichen.');
+  }
+  return trimmed;
+}
+
 function normalize(value: string): string {
-  return value.replaceAll('\\', '/').replace(/\/+/g, '/').replace(/\/$/, '').toLowerCase();
+  const replaced = value.replaceAll('\\', '/').replace(/\/+/g, '/');
+  const parts = replaced.split('/');
+  const normalized: string[] = [];
+  for (const part of parts) {
+    if (!part || part === '.') continue;
+    if (part === '..') { normalized.pop(); continue; }
+    normalized.push(part);
+  }
+  return normalized.join('/').replace(/\/$/, '').toLowerCase();
 }
