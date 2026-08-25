@@ -34,7 +34,7 @@ export class WorkspaceFileService {
   }
 
   private async loadChildren(path: string): Promise<ExplorerNode[]> {
-    const entries = (await this.fileSystem.listDirectory(path)).filter((entry) => !entry.path.split('/').includes('.nova'));
+    const entries = (await this.fileSystem.listDirectory(path)).filter((entry) => entry.name !== '.nova');
     return Promise.all(entries.map(async (entry) => ({
       ...entry,
       children: entry.kind === 'directory' ? await this.loadChildren(entry.path) : undefined

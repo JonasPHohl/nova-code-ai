@@ -9,6 +9,28 @@ cd frontend
 npm run dev
 ```
 
+Aus dem Repository-Root ist derselbe Frontend-Start möglich:
+
+```powershell
+npm run dev
+```
+
+## Desktop-App
+
+Für die Tauri-Entwicklung werden Rust, Cargo und die Windows-Build-Tools benötigt:
+
+```powershell
+npm run tauri:dev
+```
+
+Der Windows-Build wird ausschließlich über Tauri erstellt:
+
+```powershell
+npm run tauri:build
+```
+
+Die erzeugten Windows-Bundles liegen anschließend unter `desktop/src-tauri/target/release/bundle/`, typischerweise in den Unterordnern `msi/` und `nsis/`.
+
 Das Backend läuft separat:
 
 ```powershell

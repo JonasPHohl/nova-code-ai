@@ -5,7 +5,7 @@ const languageByExtension: Record<string, string> = {
 };
 
 export function detectLanguage(path: string): string {
-  const fileName = path.split('/').at(-1) ?? path;
+  const fileName = path.replaceAll('\\', '/').split('/').at(-1) ?? path;
   const extension = fileName.slice(fileName.lastIndexOf('.')).toLowerCase();
   return languageByExtension[extension] ?? 'plaintext';
 }
