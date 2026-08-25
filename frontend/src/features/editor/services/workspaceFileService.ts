@@ -14,6 +14,12 @@ export class WorkspaceFileService {
   async saveFile(file: OpenFile): Promise<void> {
     await this.fileSystem.writeFile(file.path, file.content);
   }
+  async readProjectGuidance(root: string): Promise<{ rules?: string; memory?: string }> {
+    const guidance: { rules?: string; memory?: string } = {};
+    try { guidance.rules = await this.fileSystem.readFile(`${root}/.nova/rules.md`); } catch { /* optional guidance */ }
+    try { guidance.memory = await this.fileSystem.readFile(`${root}/.nova/memory.md`); } catch { /* optional guidance */ }
+    return guidance;
+  }
 
   async loadTree(root: string): Promise<ExplorerNode[]> {
     return this.loadChildren(root);

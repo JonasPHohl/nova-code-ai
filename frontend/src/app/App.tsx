@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Activity, ChevronRight, Circle, Code2, FolderOpen, GitBranch, Layers3, Menu, Plus, Search, Settings, ShieldCheck, Terminal, TestTube2, X } from 'lucide-react';
 import type { AppView, SidebarSection } from '../core/types/project';
 import type { RecentProject } from '../core/types/project';
@@ -13,6 +13,7 @@ import { AIWorkspace } from '../features/ai/components/AIWorkspace';
 import { AISettings } from '../features/ai/components/AISettings';
 import { useAISettings } from '../features/ai/hooks/useAISettings';
 import type { AIConfig } from '../features/ai/types';
+import type { OpenFile } from '../features/editor/types';
 import '../styles/index.css';
 
 const webFileSystem = new MockFileSystem('C:/NovaProjects');
@@ -79,7 +80,9 @@ function Home({ projects, onCreate, onOpen, onOpenDirectory }: { projects: Recen
 
 function Workspace({ project, config, bottomPanel, setBottomPanel }: { project: RecentProject | null; config: AIConfig; bottomPanel: string; setBottomPanel: (value: string) => void }) {
   const projectFileSystem = project && isTauriRuntime() ? new TauriFileSystem(project.path) : webFileSystem;
-  return <main className="workspace-view"><section className="workspace-main"><EditorWorkspace projectRoot={project?.path ?? 'C:/NovaProjects'} fileSystem={projectFileSystem} projectName={project?.name ?? 'Workspace'} /><AIWorkspace config={config} /></section><div className="bottom-panel"><div className="bottom-tabs">{bottomItems.map((item) => <button key={item} className={bottomPanel === item ? 'active' : ''} onClick={() => setBottomPanel(item)}>{item}</button>)}</div><div className="bottom-content"><Terminal size={16} /><span>{bottomPanel === 'Terminal' ? 'Terminal ist in dieser Foundation bewusst deaktiviert.' : `${bottomPanel} panel ist vorbereitet.`}</span><span className="safe-label"><ShieldCheck size={14} /> sicherer Modus</span></div></div></main>;
+  const [context, setContext] = useState<{ file: OpenFile | null; selection: string }>({ file: null, selection: '' });
+  const applyEditorContent = useRef<(path: string, content: string) => void>(() => undefined);
+    return <main className="workspace-view"><section className="workspace-main"><EditorWorkspace projectRoot={project?.path ?? 'C:/NovaProjects'} fileSystem={projectFileSystem} projectName={project?.name ?? 'Workspace'} onContextChange={(file, selection) => setContext({ file, selection })} onApplyReady={(apply) => { applyEditorContent.current = apply; }} /><AIWorkspace config={config} projectRoot={project?.path ?? 'C:/NovaProjects'} activeFile={context.file} selection={context.selection} fileSystem={projectFileSystem} onApply={(content) => { if (context.file) applyEditorContent.current(context.file.path, content); }} /></section><div className="bottom-panel"><div className="bottom-tabs">{bottomItems.map((item) => <button key={item} className={bottomPanel === item ? 'active' : ''} onClick={() => setBottomPanel(item)}>{item}</button>)}</div><div className="bottom-content"><Terminal size={16} /><span>{bottomPanel === 'Terminal' ? 'Terminal ist in dieser Foundation bewusst deaktiviert.' : `${bottomPanel} panel ist vorbereitet.`}</span><span className="safe-label"><ShieldCheck size={14} /> sicherer Modus</span></div></div></main>;
 }
 
 function SettingsPage({ config, onConfigChange }: { config: AIConfig; onConfigChange: (patch: Partial<AIConfig>) => void }) { const groups = ['General', 'Appearance', 'AI', 'Editor', 'Security', 'Advanced']; return <main className="settings-view"><div className="settings-header"><span className="eyebrow">CONFIGURATION</span><h1>Settings</h1><p>Workspace-Verhalten und lokale Grenzen verwalten.</p></div><div className="settings-layout"><nav className="settings-nav">{groups.map((group, index) => <button className={index === 0 ? 'active' : ''} key={group}>{group}</button>)}</nav><section className="settings-content"><div className="setting-block"><span className="eyebrow">GENERAL</span><h2>General</h2><p className="setting-description">Grundlegende Einstellungen für Nova Code AI.</p><label className="setting-row"><span><strong>Local first mode</strong><small>Arbeite standardmäßig ohne externe Services.</small></span><input type="checkbox" checked readOnly /></label><label className="setting-row"><span><strong>Confirm file writes</strong><small>Schreibvorgänge werden vorerst immer bestätigt.</small></span><input type="checkbox" checked readOnly /></label></div><AISettings config={config} onChange={onConfigChange} /><div className="setting-block"><span className="eyebrow">SECURITY</span><h2>Security</h2><div className="security-note"><ShieldCheck size={18} /><span><strong>Protected foundation</strong><small>Shell-Ausführung und automatische Änderungen sind deaktiviert.</small></span></div></div></section></div></main>; }

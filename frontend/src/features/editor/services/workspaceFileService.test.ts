@@ -29,4 +29,14 @@ describe('WorkspaceFileService', () => {
     });
     await expect(service.saveFile({ path: 'C:/Project/app.ts', name: 'app.ts', content: 'x', savedContent: '', language: 'typescript' })).rejects.toThrow('write failed');
   });
+
+  it('reads optional Nova guidance without exposing it in the tree', async () => {
+    const fileSystem = new MockFileSystem('C:/Project-guidance');
+    await fileSystem.createDirectory('C:/Project-guidance/.nova');
+    await fileSystem.writeFile('C:/Project-guidance/.nova/rules.md', 'rules');
+    await fileSystem.writeFile('C:/Project-guidance/.nova/memory.md', 'memory');
+    const service = new WorkspaceFileService(fileSystem);
+    await expect(service.readProjectGuidance('C:/Project-guidance')).resolves.toEqual({ rules: 'rules', memory: 'memory' });
+    await expect(service.loadTree('C:/Project-guidance')).resolves.toEqual([]);
+  });
 });

@@ -12,6 +12,7 @@ export class ProjectService {
     const safeName = validateProjectName(name);
     const now = new Date().toISOString();
     const manifest: ProjectManifest = { formatVersion: 1, name: safeName, createdAt: now, updatedAt: now };
+    await this.fileSystem.createDirectory(root);
     await this.fileSystem.createDirectory(`${root}/.nova`);
     await this.fileSystem.createDirectory(`${root}/.nova/context`);
     await this.fileSystem.createDirectory(`${root}/.nova/snapshots`);

@@ -10,6 +10,7 @@ export function useEditorWorkspace(service: WorkspaceFileService, root: string) 
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [savingPath, setSavingPath] = useState<string | null>(null);
+  const [selection, setSelection] = useState('');
 
   const refreshTree = useCallback(async () => {
     try { setTree(await service.loadTree(root)); } catch (caught) { setError(messageOf(caught, 'Explorer konnte nicht geladen werden.')); }
@@ -18,8 +19,8 @@ export function useEditorWorkspace(service: WorkspaceFileService, root: string) 
 
   const openFile = useCallback(async (path: string) => {
     const existing = files.find((file) => file.path === path);
-    if (existing) { setActivePath(path); return; }
-    try { const file = await service.openFile(path); setFiles((current) => [...current, file]); setActivePath(path); }
+    if (existing) { setActivePath(path); setSelection(''); return; }
+    try { const file = await service.openFile(path); setFiles((current) => [...current, file]); setActivePath(path); setSelection(''); }
     catch (caught) { setError(messageOf(caught, 'Datei konnte nicht geöffnet werden.')); }
   }, [files, service]);
 
@@ -27,6 +28,10 @@ export function useEditorWorkspace(service: WorkspaceFileService, root: string) 
     if (!activePath) return;
     setFiles((current) => current.map((file) => file.path === activePath ? { ...file, content } : file));
   }, [activePath]);
+
+  const replaceSavedContent = useCallback((path: string, content: string) => {
+    setFiles((current) => current.map((file) => file.path === path ? { ...file, content, savedContent: content } : file));
+  }, []);
 
   const saveFile = useCallback(async (path: string) => {
     const file = files.find((item) => item.path === path);
@@ -43,12 +48,13 @@ export function useEditorWorkspace(service: WorkspaceFileService, root: string) 
     if (file && file.content !== file.savedContent && !window.confirm(`${file.name} hat ungespeicherte Änderungen. Trotzdem schließen?`)) return;
     setFiles((current) => current.filter((file) => file.path !== path));
     setActivePath((current) => current === path ? (files.find((file) => file.path !== path)?.path ?? null) : current);
+    if (activePath === path) setSelection('');
   }, [files]);
 
   const toggleDirectory = useCallback((path: string) => setExpanded((current) => { const next = new Set(current); if (next.has(path)) next.delete(path); else next.add(path); return next; }), []);
   const search = useCallback(async (query: string) => { try { setSearchResults(await service.search(root, query)); } catch (caught) { setError(messageOf(caught, 'Suche fehlgeschlagen.')); } }, [root, service]);
   const clearError = useCallback(() => setError(null), []);
-  return { files, activeFile: files.find((file) => file.path === activePath) ?? null, tree, expanded, error, savingPath, openFile, updateContent, saveFile, closeFile, toggleDirectory, search, searchResults, clearError, refreshTree };
+  return { files, activeFile: files.find((file) => file.path === activePath) ?? null, selection, setSelection, tree, expanded, error, savingPath, openFile, updateContent, replaceSavedContent, saveFile, closeFile, toggleDirectory, search, searchResults, clearError, refreshTree };
 }
 
 function messageOf(caught: unknown, fallback: string): string { return caught instanceof Error ? caught.message : fallback; }

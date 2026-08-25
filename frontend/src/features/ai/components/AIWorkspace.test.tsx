@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { AIWorkspace } from './AIWorkspace';
 
 const config = { provider: 'ollama' as const, ollamaUrl: 'http://localhost:11434', model: 'qwen-coder' };
+const fileSystem = { readFile: async () => '', writeFile: async () => undefined, exists: async () => true, createDirectory: async () => undefined, listDirectory: async () => [] };
+const props = { projectRoot: 'C:/Project', activeFile: null, selection: '', fileSystem };
 
 describe('AIWorkspace', () => {
   it('sends a message and renders the response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ done: true, message: { role: 'assistant', content: 'Hallo! Ich bin Nova.' } }) }));
-    render(<AIWorkspace config={config} />);
+    render(<AIWorkspace config={config} {...props} />);
     const input = screen.getByRole('textbox', { name: 'Message Nova' });
     await userEvent.type(input, 'Hallo');
     await userEvent.keyboard('{Enter}');
@@ -17,14 +19,14 @@ describe('AIWorkspace', () => {
 
   it('renders a connection error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-    render(<AIWorkspace config={config} />);
+    render(<AIWorkspace config={config} {...props} />);
     await userEvent.type(screen.getByRole('textbox', { name: 'Message Nova' }), 'Hallo');
     await userEvent.keyboard('{Enter}');
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not connect to Ollama.');
   });
 
   it('keeps chat disabled without a model', () => {
-    render(<AIWorkspace config={{ ...config, model: '' }} />);
+    render(<AIWorkspace config={{ ...config, model: '' }} {...props} />);
     expect(screen.getByRole('textbox', { name: 'Message Nova' })).toBeDisabled();
   });
 });
